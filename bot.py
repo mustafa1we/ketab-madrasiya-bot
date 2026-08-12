@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -84,13 +84,13 @@ def send_message(chat_id, text):
     )
 
 def ask_ai(user_text):
-    response = client.models.generate_content(
+    interaction = client.interactions.create(
         model=MODEL,
-        contents=SYSTEM_PROMPT + "\n\nرسالة الزبون:\n" + user_text
+        input=user_text,
+        system_instruction=SYSTEM_PROMPT
     )
 
-    if response.text:
-        return response.text.strip()
+    return interaction.output_text.strip()
 
     return "عذراً 🌷 ما فهمت سؤالك، وضحلي أكثر."
 
