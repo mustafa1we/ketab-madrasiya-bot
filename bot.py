@@ -9,8 +9,7 @@ logging.basicConfig(level=logging.INFO)
 TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-
+MODEL = "gemini-3.6-flash"
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 TG = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
