@@ -3,9 +3,8 @@
 هذا مشروع جاهز لبوت Telegram يرد تلقائيًا باستخدام الذكاء الاصطناعي.
 
 ## يحتاج مفتاحين
-1. TELEGRAM_BOT_TOKEN من BotFather.
-2. OPENAI_API_KEY من حساب OpenAI API.
-
+1. TELEGRAM_BOT_TOKEN = توكن البوت
+2. GEMINI_API_KEY = مفتاح Gemini
 لا ترسل أي مفتاح داخل المحادثة.
 
 ## التشغيل على الكمبيوتر
