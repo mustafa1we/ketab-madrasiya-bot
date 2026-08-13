@@ -121,9 +121,6 @@ def ask_ai(user_text):
 
 
 def prepare_bot():
-    """
-    نلغي أي Webhook قديم لأننا نستخدم getUpdates / polling.
-    """
     try:
         response = requests.post(
             TG + "/deleteWebhook",
@@ -137,7 +134,7 @@ def prepare_bot():
             logging.info("Webhook removed successfully")
         else:
             logging.warning(
-                "Could not remove webhook: %s",
+                "Webhook remove failed: %s",
                 response.text
             )
 
@@ -155,11 +152,8 @@ def main():
 
     while True:
         try:
-
             params = {
                 "timeout": 50,
-
-                # Telegram يحتاجها كـ JSON string
                 "allowed_updates": json.dumps([
                     "message",
                     "business_message"
@@ -175,13 +169,10 @@ def main():
                 timeout=65
             )
 
-            # معالجة تعارض polling
             if response.status_code == 409:
                 logging.error(
-                    "Telegram 409 Conflict: another bot instance "
-                    "is using getUpdates with the same token."
+                    "409 Conflict: another bot instance is using this token."
                 )
-
                 time.sleep(10)
                 continue
 
@@ -190,13 +181,10 @@ def main():
             updates = response.json().get("result", [])
 
             for update in updates:
-
                 offset = update["update_id"] + 1
 
-                # الرسائل العادية
                 msg = update.get("message")
 
-                # رسائل Telegram Business
                 if msg is None:
                     msg = update.get("business_message")
 
@@ -223,20 +211,13 @@ def main():
                     bool(business_connection_id)
                 )
 
-                # =========================
-                # الرسائل النصية
-                # =========================
-
                 if "text" in msg:
-
                     text = msg["text"].strip()
 
                     if not text:
                         continue
 
-                    # /start
                     if text.startswith("/start"):
-
                         send_message(
                             chat_id,
                             "أهلاً وسهلاً 🌷\n"
@@ -244,24 +225,18 @@ def main():
                             "اكتبلي شنو تحتاج.",
                             business_connection_id
                         )
-
                         continue
 
-                    # /help
                     if text.startswith("/help"):
-
                         send_message(
                             chat_id,
                             "اكتب سؤالك مباشرة 🌷\n"
                             "وأجاوبك بكل ما يخص مكتبة أم القرى.",
                             business_connection_id
                         )
-
                         continue
 
-                    # سؤال الزبون
                     try:
-
                         answer = ask_ai(text)
 
                         send_message(
@@ -271,7 +246,6 @@ def main():
                         )
 
                     except Exception as error:
-
                         logging.exception("AI error")
 
                         error_text = str(error).lower()
@@ -281,27 +255,19 @@ def main():
                             or "quota" in error_text
                             or "rate limit" in error_text
                         ):
-
                             send_message(
                                 chat_id,
                                 "الخدمة مشغولة حالياً 🌷 حاول بعد شوي.",
                                 business_connection_id
                             )
-
                         else:
-
                             send_message(
                                 chat_id,
                                 "صار تأخير بسيط بالخدمة 🌷 حاول بعد شوي.",
                                 business_connection_id
                             )
 
-                # =========================
-                # الصور والملفات
-                # =========================
-
                 elif "photo" in msg or "document" in msg:
-
                     send_message(
                         chat_id,
                         "وصلتني الصورة/الملف 🌷\n"
@@ -309,12 +275,7 @@ def main():
                         business_connection_id
                     )
 
-                # =========================
-                # أنواع الرسائل الأخرى
-                # =========================
-
                 else:
-
                     send_message(
                         chat_id,
                         "أكدر أساعدك بكل ما يخص مكتبة أم القرى 🌷",
@@ -322,30 +283,23 @@ def main():
                     )
 
         except requests.exceptions.Timeout:
-
             logging.warning(
                 "Telegram request timed out. Retrying..."
             )
-
             continue
 
         except requests.exceptions.RequestException:
-
             logging.exception(
                 "Telegram connection error"
             )
-
             time.sleep(5)
 
         except Exception:
-
             logging.exception(
                 "Unexpected polling error"
             )
-
             time.sleep(5)
 
 
 if __name__ == "__main__":
     main()
-```
