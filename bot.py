@@ -91,12 +91,12 @@ SYSTEM_PROMPT = """
 
 
 def send_message(chat_id, text, business_connection_id=None):
-
     if not text:
         text = "وضحلي شنو تحتاج 🌷"
 
     text = str(text).strip()
 
+    # نقسم الرسالة إذا كانت طويلة
     max_length = 4000
 
     parts = []
@@ -118,42 +118,37 @@ def send_message(chat_id, text, business_connection_id=None):
         if business_connection_id:
             data["business_connection_id"] = business_connection_id
 
-        try:
+        response = requests.post(
+            TG + "/sendMessage",
+            json=data,
+            timeout=30
+        )
 
-            response = requests.post(
-                TG + "/sendMessage",
-                json=data,
-                timeout=30
-            )
-
-            if not response.ok:
-
-                logging.error(
-                    "Telegram sendMessage FAILED | status=%s | response=%s",
-                    response.status_code,
-                    response.text
-                )
-
-                logging.error(
-                    "Telegram data | chat_id=%s | business=%s",
-                    chat_id,
-                    bool(business_connection_id)
-                )
-
-            response.raise_for_status()
-
-            logging.info(
-                "Telegram message sent successfully"
-            )
-
-        except requests.exceptions.RequestException as error:
-
+        if not response.ok:
             logging.error(
-                "Telegram sendMessage exception: %s",
-                error
+                "TELEGRAM ERROR:"
+            )
+            logging.error(
+                "STATUS: %s",
+                response.status_code
+            )
+            logging.error(
+                "RESPONSE: %s",
+                response.text
+            )
+            logging.error(
+                "CHAT_ID: %s",
+                chat_id
+            )
+            logging.error(
+                "BUSINESS_CONNECTION: %s",
+                business_connection_id
             )
 
-            raise
+            # لا نخلي الخطأ يضيع
+            return False
+
+    return True
 
 
 def ask_ai(user_text):
