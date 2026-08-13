@@ -1,3 +1,4 @@
+```python
 import os
 import time
 import logging
@@ -9,7 +10,8 @@ logging.basicConfig(level=logging.INFO)
 TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
-MODEL = "gemini-3.6-flash"
+# موديل أخف ومناسب للاستخدام العالي
+MODEL = "gemini-2.5-flash-lite"
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -82,7 +84,7 @@ def send_message(chat_id, text, business_connection_id=None):
         "text": text
     }
 
-    # مهم جداً لرسائل Telegram Business
+    # مهم لرسائل Telegram Business
     if business_connection_id:
         data["business_connection_id"] = business_connection_id
 
@@ -92,7 +94,6 @@ def send_message(chat_id, text, business_connection_id=None):
         timeout=30
     )
 
-    # إذا Telegram رجع خطأ، يظهر بالـ logs
     if not response.ok:
         logging.error(
             "Telegram sendMessage error: %s",
@@ -114,20 +115,19 @@ def ask_ai(user_text):
     if answer:
         return answer.strip()
 
-    return "عذراً 🌷 ما فهمت سؤالك، وضحلي أكثر."
+    return "وضحلي شنو تحتاج 🌷"
 
 
 def main():
     offset = None
 
     logging.info("Bot started")
+    logging.info("Using model: %s", MODEL)
 
     while True:
         try:
             params = {
                 "timeout": 50,
-
-                # نستقبل الرسائل العادية ورسائل Telegram Business
                 "allowed_updates": [
                     "message",
                     "business_message"
@@ -150,10 +150,10 @@ def main():
             for update in updates:
                 offset = update["update_id"] + 1
 
-                # الرسالة العادية
+                # الرسائل العادية
                 msg = update.get("message")
 
-                # رسالة وصلت من Telegram Business
+                # رسائل Telegram Business
                 if msg is None:
                     msg = update.get("business_message")
 
@@ -170,7 +170,7 @@ def main():
                 if not chat_id:
                     continue
 
-                # موجود فقط برسائل Business
+                # موجود برسائل Business
                 business_connection_id = msg.get(
                     "business_connection_id"
                 )
@@ -186,13 +186,14 @@ def main():
                 # =========================
 
                 if "text" in msg:
+
                     text = msg["text"].strip()
 
                     if not text:
                         continue
 
-                    # أوامر البوت العادي
                     if text.startswith("/start"):
+
                         send_message(
                             chat_id,
                             "أهلاً وسهلاً 🌷\n"
@@ -200,18 +201,22 @@ def main():
                             "اكتبلي شنو تحتاج.",
                             business_connection_id
                         )
+
                         continue
 
                     if text.startswith("/help"):
+
                         send_message(
                             chat_id,
                             "اكتب سؤالك مباشرة 🌷\n"
                             "وأجاوبك بكل ما يخص مكتبة أم القرى.",
                             business_connection_id
                         )
+
                         continue
 
                     try:
+
                         answer = ask_ai(text)
 
                         send_message(
@@ -220,14 +225,28 @@ def main():
                             business_connection_id
                         )
 
-                    except Exception:
+                    except Exception as error:
+
                         logging.exception("AI error")
 
-                        send_message(
-                            chat_id,
-                            "عذراً 🌷 صار خلل مؤقت بالخدمة، حاول مرة ثانية.",
-                            business_connection_id
-                        )
+                        error_text = str(error)
+
+                        # إذا انتهت حصة Gemini
+                        if "429" in error_text or "quota" in error_text.lower():
+
+                            send_message(
+                                chat_id,
+                                "الخدمة مشغولة حالياً 🌷 حاول بعد شوي.",
+                                business_connection_id
+                            )
+
+                        else:
+
+                            send_message(
+                                chat_id,
+                                "صار تأخير بسيط بالخدمة 🌷 حاول بعد شوي.",
+                                business_connection_id
+                            )
 
                 # =========================
                 # الصور والملفات
@@ -255,9 +274,12 @@ def main():
                     )
 
         except Exception:
+
             logging.exception("Polling error")
+
             time.sleep(5)
 
 
 if __name__ == "__main__":
     main()
+```
