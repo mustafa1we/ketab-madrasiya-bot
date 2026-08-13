@@ -247,8 +247,8 @@ for product in PRODUCTS:
 def build_full_catalog():
     lines = []
     for p in CATALOG:
-        price = "يحتاج تأكيد من المكتبة" if p["price"] == 0 else f"{money(p["price"])} دينار"
-        lines.append(f"- {p["name"]}: {price}")
+        price = "يحتاج تأكيد من المكتبة" if p["price"] == 0 else f"{money(p['price'])} دينار"
+        lines.append(f"- {p['name']}: {price}")
     return "\n".join(lines)
 
 
@@ -397,6 +397,204 @@ def has_number(text, number):
 
 
 # =========================================================
+# محرك فهم موسّع للزبائن
+# =========================================================
+
+ARABIC_NUMBER_WORDS = {
+    "صفر": "0", "واحد": "1", "وحده": "1", "اثنين": "2", "اثنان": "2",
+    "ثلاثه": "3", "ثلاث": "3", "اربعه": "4", "اربعة": "4", "خمسه": "5",
+    "خمسة": "5", "سته": "6", "ستة": "6", "سبعه": "7", "سبعة": "7",
+    "ثمانيه": "8", "ثمانية": "8", "تسعه": "9", "تسعة": "9",
+    "عشره": "10", "عشرة": "10", "ميه": "100", "مئه": "100",
+    "مئة": "100", "الف": "1000", "ألف": "1000", "الفين": "2000",
+    "ثلاث الاف": "3000", "اربعة الاف": "4000", "خمسة الاف": "5000",
+    "ستة الاف": "6000", "سبعة الاف": "7000", "ثمانية الاف": "8000",
+    "تسعة الاف": "9000", "عشرة الاف": "10000",
+}
+
+GENERIC_ALIASES = {
+    # منتجات/أسماء شائعة جداً
+    "طبشور": "طباشير", "طبشورة": "طباشير", "طبشوره": "طباشير",
+    "الطبشور": "طباشير", "الطباشير": "طباشير",
+    "طين": "طين اسطناعي", "صلصال": "طين اسطناعي", "عجينه": "طين اسطناعي",
+    "عجينة": "طين اسطناعي",
+    "هايلايتر": "قلم تأشير باكيت", "هاي لايتر": "قلم تأشير باكيت",
+    "ماركر تأشير": "قلم تأشير باكيت", "ماركر تاشير": "قلم تأشير باكيت",
+    "تأشيرة": "قلم تأشير باكيت", "تاشيرة": "قلم تأشير باكيت",
+    "تاشيره": "قلم تأشير باكيت", "تاشير": "قلم تأشير باكيت",
+    "تأشير": "قلم تأشير باكيت",
+    "قلم تاشير": "قلم تأشير باكيت", "قلم تاشيره": "قلم تأشير باكيت",
+    "اقلام تاشير": "قلم تأشير باكيت", "اقلام تاشيره": "قلم تأشير باكيت",
+    "اقلام تأشير": "قلم تأشير باكيت",
+    "بورد": "بورد خشب", "بورد خشبي": "بورد خشب",
+    "لوح خشب": "بورد خشب", "لوح": "بورد خشب",
+    "سبورة": "صبورة", "سبوره": "صبورة", "سبورات": "صبورة",
+    "لوح صبورة": "صبورة", "لوحات صبورة": "صبورة",
+    "قلم صبورة": "قلم صبوره باكيت", "اقلام صبورة": "قلم صبوره باكيت",
+    "طباشير سبورة": "طباشير",
+    "قلم رصاص": "اقلام رصاص ابو الف", "قلم الرصاص": "اقلام رصاص ابو الف",
+    "اقلام رصاص": "اقلام رصاص ابو الف", "اقلام الرصاص": "اقلام رصاص ابو الف",
+    "رصاص": "اقلام رصاص ابو الف",
+    "الوان رصاص": "باكيت اقلام رصاص الوان", "اقلام رصاص الوان": "باكيت اقلام رصاص الوان",
+    "ألوان مائية": "الوان مائية صغيرة", "الوان مائيه": "الوان مائية صغيرة",
+    "الوان خشبية": "الوان خشبية ام 1000", "الوان خشبيه": "الوان خشبية ام 1000",
+    "الوان ماجك": "الوان ماجك ابو 1000", "ماجك": "الوان ماجك ابو 1000",
+    "ماركر": "الوان ماجك ابو 1000",
+    "باستيل": "الوان باستيل صغير",
+    "الوان نتراجه": "الوان نتراجة كبير",
+    "سجل": "دفتر سجل", "السجل": "دفتر سجل", "سجلات": "دفتر سجل",
+    "دفتر سجل": "دفتر سجل", "دفاتر سجل": "دفتر سجل",
+    "دفتر ملاحظة": "دفتر ملاحضات A4", "دفاتر ملاحظات": "دفتر ملاحظات مدرسي وسط",
+    "دفتر ملاحظات": "دفتر ملاحظات مدرسي وسط",
+    "دفتر رسم": "دفتر رسم ابو 20", "دفاتر رسم": "دفتر رسم ابو 20",
+    "دفتر تلوين": "دفتر تلوين صغير", "دفاتر تلوين": "دفتر تلوين صغير",
+    "دفتر كانسل": "دفتر كانسل A4", "كانسل": "دفتر كانسل A4",
+    "فايل": "فايل شفاف", "فايلات": "فايل شفاف", "ملف": "فايل شفاف", "ملفات": "فايل شفاف",
+    "فايل كارتون": "فايل كارتوني", "ملف كارتون": "فايل كارتوني",
+    "ظرف": "ظرف صغير", "اظرف": "ظرف صغير", "مغلف": "ظرف صغير", "مغلفات": "ظرف صغير",
+    "فريم": "فريمات 40*60", "فريمات": "فريمات 40*60", "برواز": "اطار صورة", "براويز": "اطار صورة",
+    "اطار": "اطار صورة", "إطار": "اطار صورة",
+    "لاصق": "لاسق ابو 500", "لازق": "لاسق ابو 500", "لاسگ": "لاسق ابو 500",
+    "سكوتش": "لاسق ابو 500", "شطرطون": "لاسق ابو 500", "تيب": "لاسق ابو 500",
+    "صمغ": "صمغ سائل ابو 1000", "غراء": "صمغ سائل ابو 1000",
+    "كابسة": "كابسة ام 3000", "كباسة": "كابسة ام 3000", "دباسة": "كابسة ام 3000",
+    "دباسة ورق": "كابسة ام 3000",
+    "ثاقبة": "ثاقبة", "خرامة": "ثاقبة", "خراطة ورق": "ثاقبة",
+    "قاصة": "قاصه", "قاصه": "قاصه", "قطاعة": "قاصه", "قاطعة": "قاصه",
+    "مسدس سيليكون": "مسدس سليكون", "مسدس سليكون": "مسدس سليكون",
+    "سيليكون": "مسدس سليكون",
+    "حاسبة": "حاسبة ام 2000", "حاسبه": "حاسبة ام 2000", "الة حاسبة": "حاسبة ام 2000",
+    "آلة حاسبة": "حاسبة ام 2000",
+    "راوتر": "راوتر زين صغير", "راوترات": "راوتر زين صغير", "مودم": "راوتر زين صغير",
+    "زين": "راوتر زين صغير",
+    "لعبة": "لعبة اطفال", "العاب": "لعبة اطفال", "ألعاب": "لعبة اطفال",
+    "اونو": "اونو", "دومينو": "دومنة", "دومنة": "دومنة", "ورق لعب": "ورق لعب",
+    "كروت": "ورق لعب", "بطاقات لعب": "ورق لعب",
+    "ميدالية": "ميدالية مفاتيح", "مدالية": "ميدالية مفاتيح", "مداليات": "مداليات اشكال",
+    "ميداليات": "مداليات اشكال",
+    "مغناطيس": "مغناطيس", "مغناطيسات": "مغناطيس",
+    "قرآن": "قران صغير", "قران": "قران صغير", "مصحف": "قران صغير",
+    "حاسبات": "حاسبة ام 2000",
+}
+
+# مرادفات الاستفسارات، حتى يفهم الجملة قبل مطابقة المنتج.
+INTENT_WORDS = {
+    "price": (
+        "شكد", "بشكد", "بكم", "كم", "سعر", "سعره", "سعرها", "اسعار",
+        "فلوس", "حساب", "حسابه", "الحساب", "بفلوس", "بشكد الحساب"
+    ),
+    "availability": (
+        "اكو", "عدكم", "عندكم", "موجود", "موجوده", "موجودة", "متوفر",
+        "متوفره", "متوفرة", "عندك", "عدك", "اكو منه", "اكو منها",
+        "موجود منه", "موجود منها", "جبتوا", "متوفر حاليا"
+    ),
+    "request": (
+        "اريد", "أريد", "ريد", "احتاج", "أحتاج", "اريدلي", "اريد واحد",
+        "اريد اثنين", "اريد باكيت", "اريد حبه", "اريد حبات", "اريد اخذ",
+        "اريد اشتري", "اريد اشتريه", "محتاج"
+    ),
+}
+
+def expand_number_words(text):
+    t = normalize(text)
+    for word, num in sorted(ARABIC_NUMBER_WORDS.items(), key=lambda x: len(normalize(x[0])), reverse=True):
+        t = re.sub(rf"(?<!\w){re.escape(normalize(word))}(?!\w)", num, t)
+    return t
+
+def intent_of(text):
+    t = normalize(text)
+    return {
+        "price": any(x in t for x in INTENT_WORDS["price"]),
+        "availability": any(x in t for x in INTENT_WORDS["availability"]),
+        "request": any(x in t for x in INTENT_WORDS["request"]),
+    }
+
+def compact_tokens(text):
+    t = expand_number_words(text)
+    return [x for x in t.split() if x not in {normalize(w) for w in STOP_WORDS}]
+
+def similarity(a, b):
+    return difflib.SequenceMatcher(None, normalize(a), normalize(b)).ratio()
+
+def fuzzy_product_candidates(text, limit=8):
+    """
+    يتحمل الأخطاء مثل:
+    طبشور/طبشوره، صبوره/سبوره، حاسبه/حاسبة،
+    فريم/فريمات، كابسه/كابسة، دفتار/دفتر، طاباشير... إلخ.
+    لا يعتمد على تطابق حرفي فقط.
+    """
+    t = expand_number_words(text)
+    tokens = compact_tokens(t)
+    if not tokens:
+        return []
+
+    candidates = []
+    for p in PRODUCTS:
+        name = normalize(p["name"])
+        name_tokens = name.split()
+
+        # مطابقة تقريبية للاسم كامل.
+        score_full = similarity(t, name)
+
+        # مطابقة تقريبية لكل كلمة مهمة.
+        matched = 0
+        for tok in tokens:
+            best = 0
+            for nt in name_tokens:
+                best = max(best, difflib.SequenceMatcher(None, tok, nt).ratio())
+            if best >= 0.78:
+                matched += 1
+
+        score_tokens = matched / max(1, len(tokens))
+        score = max(score_full, score_tokens * 0.88)
+
+        if score >= 0.72:
+            candidates.append((score, p))
+
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    out, seen = [], set()
+    for score, p in candidates[:limit]:
+        key = (p["name"], p["price"])
+        if key not in seen:
+            seen.add(key)
+            out.append(p)
+    return out
+
+def add_all_matching_name(found, real_name):
+    rn = normalize(real_name)
+    for p in PRODUCTS:
+        if normalize(p["name"]) == rn and (p["name"], p["price"]) not in {
+            (x["name"], x["price"]) for x in found
+        }:
+            found.append(p)
+
+def category_keywords():
+    return {
+        "دفاتر": ("دفتر", "دفاتر", "ملاحضات", "ملاحظات", "كانسل", "رسم", "تلوين", "بياني", "احضار"),
+        "سجلات": ("سجل", "سجلات", "سيم", "خشبي", "شفاف"),
+        "أقلام": ("قلم", "اقلام", "رصاص", "تأشير", "تاشير", "ذهبي", "نبالات"),
+        "ألوان": ("الوان", "ألوان", "مائيه", "خشبيه", "ماجك", "باستيل", "نتراجة"),
+        "أدوات مكتبية": ("كابسة", "كابسه", "كلبس", "ثاقبة", "قاصه", "قاطعة", "فواصل", "دنبوس"),
+        "لاصق وصمغ": ("لاسق", "لاصق", "لازق", "صمغ", "سليكون"),
+        "فايلات": ("فايل", "فايلات", "ملف", "ملفات", "بوكس فايل"),
+        "ظروف": ("ظرف", "ظروف"),
+        "فريمات": ("فريم", "فريمات", "اطار", "إطار", "برواز"),
+        "ألعاب": ("اونو", "دومنة", "دومينو", "ورق لعب", "لعبة", "العاب"),
+        "حاسبات": ("حاسبة", "حاسبه", "الة حاسبة", "آلة حاسبة"),
+        "راوترات": ("راوتر", "مودم", "زين"),
+        "سبورات": ("صبورة", "سبورة", "صبورات", "سبورات"),
+        "فنية": ("طين", "طباشير", "اصطناعي", "اكرلك", "حبر", "بورد"),
+    }
+
+def detect_categories(text):
+    t = normalize(text)
+    found = []
+    for cat, words in category_keywords().items():
+        if any(normalize(w) in t for w in words):
+            found.append(cat)
+    return found
+
+# =========================================================
 # إيجاد المنتجات المذكورة في الرسالة
 #
 # يدعم:
@@ -406,59 +604,52 @@ def has_number(text, number):
 
 def find_products(text):
     """
-    مطابقة حتمية للمنتجات قبل الذكاء الاصطناعي.
-    تمنع الردود العامة على أسماء المنتجات الواضحة.
+    مطابقة متعددة الطبقات:
+    1) aliases
+    2) أسماء المنتجات الفعلية
+    3) كلمات شائعة جداً
+    4) مطابقة تقريبية للأخطاء الإملائية
     """
-    normalized = normalize(text)
+    normalized = expand_number_words(text)
     found = []
 
-    def add_product_by_name(real_name):
-        real_norm = normalize(real_name)
-        for product in PRODUCTS:
-            if normalize(product["name"]) == real_norm:
-                if not any(
-                    x["name"] == product["name"] and x["price"] == product["price"]
-                    for x in found
-                ):
-                    found.append(product)
-
-    # الأسماء البديلة أولاً.
+    # aliases الأطول أولاً
     for alias, real_name in sorted(
-        ALIASES.items(),
+        {**ALIASES, **GENERIC_ALIASES}.items(),
         key=lambda item: len(normalize(item[0])),
         reverse=True
     ):
-        alias_norm = normalize(alias)
-        if alias_norm and alias_norm in normalized:
-            add_product_by_name(real_name)
+        a = normalize(alias)
+        if a and a in normalized:
+            add_all_matching_name(found, real_name)
 
-    # أسماء المنتجات الفعلية.
-    for product in sorted(
-        PRODUCTS,
-        key=lambda p: len(normalize(p["name"])),
-        reverse=True
-    ):
-        product_norm = normalize(product["name"])
-        if product_norm and product_norm in normalized:
-            if not any(
-                x["name"] == product["name"] and x["price"] == product["price"]
-                for x in found
-            ):
+    # أسماء كاملة
+    for product in sorted(PRODUCTS, key=lambda p: len(normalize(p["name"])), reverse=True):
+        pn = normalize(product["name"])
+        if pn and pn in normalized:
+            key = (product["name"], product["price"])
+            if key not in {(x["name"], x["price"]) for x in found}:
                 found.append(product)
 
-    # صيغ الزبائن الشائعة للتأشير.
+    # كلمات خاصة بالتأشير
     marker_words = (
-        "تاشيره", "تاشيرة", "تاشير",
-        "تأشيره", "تأشيرة", "تأشير",
-        "قلم تاشير", "قلم تاشيره", "قلم تاشيرة",
-        "اقلام تاشير", "اقلام تاشيره", "اقلام تاشيرة",
-        "الوان تاشير", "الوان تاشيره", "الوان تاشيرة",
+        "تاشيره", "تاشيرة", "تاشير", "تأشيره", "تأشيرة", "تأشير",
+        "هايلايتر", "هاي لايتر", "قلم تاشير", "اقلام تاشير",
+        "الوان تاشير", "الوان تاشيره", "الوان تأشير"
     )
     if any(normalize(x) in normalized for x in marker_words):
-        add_product_by_name("قلم تأشير باكيت")
+        add_all_matching_name(found, "قلم تأشير باكيت")
 
-    if re.search(r"(^|\s)بورد(\s|$)", normalized) or "بورد خشبي" in normalized:
-        add_product_by_name("بورد خشب")
+    # fuzzy فقط إذا ما حصلنا تطابق واضح، حتى لا نغرق الرد بنتائج غير مطلوبة.
+    if not found:
+        fuzzy = fuzzy_product_candidates(text)
+        if fuzzy:
+            # نأخذ أعلى نتيجة، أو كل النتائج القريبة جداً من أعلى نتيجة.
+            top = fuzzy[0]
+            found = [top]
+            for p in fuzzy[1:]:
+                if similarity(p["name"], top["name"]) >= 0.86:
+                    found.append(p)
 
     return found
 
@@ -702,6 +893,26 @@ def category_answer(text, history=None):
             "وبالنسبة للملازم، آني بوت وما عندي تأكيد مباشر على سعرها أو توفرها؛ "
             "هاي تحتاج تأكيد من المكتبة."
         )
+
+    # فئات إضافية من كامل الكتالوج
+    category_map = {
+        "أقلام": lambda p: any(x in normalize(p["name"]) for x in ("قلم", "اقلام")),
+        "لاصق وصمغ": lambda p: any(x in normalize(p["name"]) for x in ("لاسق", "صمغ")),
+        "أدوات مكتبية": lambda p: any(x in normalize(p["name"]) for x in ("كابسه", "كابسة", "كلبس", "ثاقبه", "قاصه", "قاطعه", "فواصل", "دنبوس")),
+        "ألعاب": lambda p: any(x in normalize(p["name"]) for x in ("لعبة", "اونو", "دومنه", "ورق لعب")),
+        "راوترات": lambda p: "راوتر زين" in p["name"],
+        "فريمات": lambda p: "فريمات" in p["name"] or "اطار صورة" in p["name"],
+        "فنية": lambda p: any(x in normalize(p["name"]) for x in ("طين", "طباشير", "اكرلك", "حبر", "بورد")),
+    }
+
+    detected = detect_categories(text)
+    for cat in detected:
+        if cat in category_map and not any(cat in part for part in parts):
+            items = unique_items([p for p in PRODUCTS if category_map[cat](p)])
+            if items:
+                parts.append(
+                    f"إي عدنا {cat} 🌷\n" + "\n".join(lines_for(items))
+                )
 
     if parts:
         return "\n\n".join(parts)
@@ -986,6 +1197,119 @@ def remove_webhook():
 
 
 # =========================================================
+# الكمية والحساب
+# =========================================================
+
+def detect_quantity(text):
+    t = expand_number_words(text)
+    patterns = [
+        r"(?:عدد|كمية|اريد|أريد|ريد|اخذ|آخذ)\s*(\d+)\s*(?:حبة|حبات|واحد|وحدة|قطعة|قطع)?",
+        r"\b(\d+)\s*(?:حبة|حبات|قطعة|قطع|دفتر|دفاتر|قلم|اقلام|باكيت|باكت)\b",
+    ]
+    for pat in patterns:
+        m = re.search(pat, t)
+        if m:
+            try:
+                q = int(m.group(1))
+                if 1 <= q <= 1000:
+                    return q
+            except Exception:
+                pass
+    return None
+
+def format_product_answer(products, text):
+    if not products:
+        return None
+    qty = detect_quantity(text)
+    lines = []
+    for p in products:
+        if p["price"] == 0:
+            price = "السعر يحتاج تأكيد من المكتبة"
+        else:
+            price = f'{money(p["price"])} دينار'
+            if qty and len(products) == 1:
+                price += f' | {qty} = {money(p["price"] * qty)} دينار'
+        lines.append(f'{p["name"]}: {price}')
+    if len(lines) == 1:
+        return f"إي 🌷 {lines[0]}"
+    return "إي 🌷 هاي التفاصيل:\n" + "\n".join(f"• {x}" for x in lines)
+
+
+# =========================================================
+# فهم مجالات المكتبة
+# =========================================================
+
+CATEGORY_RULES = {
+    "أقلام": ["قلم", "اقلام", "قلام", "قلمون", "رصاص", "تاشير", "تأشير", "صبوره", "صبورة", "نبالات", "ذهبي"],
+    "ألوان": ["الوان", "الوانه", "تلوين", "باستيل", "ماجك", "مائي", "خشبي", "جاف"],
+    "دفاتر": ["دفتر", "دفاتر", "ملاحضات", "ملاحظات", "رسم", "تلوين", "كانسل", "بياني"],
+    "سجلات": ["سجل", "سجلات", "سيم", "شفاف", "خشبي"],
+    "سبورات": ["صبوره", "صبورة", "سبوره", "سبورة", "سبورات"],
+    "لاصق": ["لاسق", "لاصق", "سكوتش", "شريط", "وجهية"],
+    "صموغ": ["صمغ", "صمع", "غراء"],
+    "فايلات": ["فايل", "فايلات", "ملف", "بوكس فايل"],
+    "ظروف": ["ظرف", "اظرف", "ظروف"],
+    "فريمات وإطارات": ["فريم", "فريمات", "اطار", "إطار"],
+    "أدوات مكتبية": ["كابسة", "كابسه", "ثاقبة", "كلبس", "قاصه", "قاصة", "قاطعة", "دنبوس", "دنابيس"],
+    "ألعاب": ["اونو", "دومنه", "دومنة", "لعبة", "العاب", "ورق لعب", "سكوشي"],
+    "حاسبات": ["حاسبة", "حاسبه", "حاسبات"],
+    "راوترات": ["راوتر", "راوترات", "مودم"],
+    "مستلزمات مدرسية": ["مدرسي", "مدرسية", "مدرسه", "مدرسة", "طلاب", "طالب", "مدرس"],
+    "رسم وتلوين": ["رسم", "تلوين", "الوان", "فرشة", "فرجه", "بورد خشب"],
+}
+
+def category_matches(text):
+    t = normalize(text)
+    found = []
+    for cat, words in CATEGORY_RULES.items():
+        if any(normalize(w) in t for w in words):
+            found.append(cat)
+    return found
+
+def products_for_category(category):
+    words = CATEGORY_RULES.get(category, [])
+    result = []
+    for p in PRODUCTS:
+        pn = normalize(p["name"])
+        if any(normalize(w) in pn for w in words):
+            result.append(p)
+    return result
+
+def category_answer(text):
+    cats = category_matches(text)
+    if not cats:
+        return None
+    # Only treat it as a category request if there is no strong exact product match.
+    exact = find_products(text)
+    if exact:
+        return None
+
+    sections = []
+    for cat in cats[:4]:
+        items = products_for_category(cat)
+        if not items:
+            continue
+        # Avoid dumping the whole catalog; show a useful sample with prices.
+        seen = set()
+        lines = []
+        for p in items:
+            name = p["name"]
+            if name in seen:
+                continue
+            seen.add(name)
+            price = "يحتاج تأكيد" if p["price"] == 0 else f'{money(p["price"])} د'
+            lines.append(f"• {name}: {price}")
+            if len(lines) >= 8:
+                break
+        if lines:
+            sections.append(f"**{cat}:**\n" + "\n".join(lines))
+
+    if not sections:
+        return None
+    return "إي عدنا 🌷\n" + "\n\n".join(sections) + "\n\nإذا تريد نوع محدد أطلعلك تفاصيله."
+
+
+# =========================================================
 # معالجة الرسالة
 # =========================================================
 
@@ -1114,7 +1438,7 @@ def process_message(msg):
         if answer:
             answer = answer.replace("أكيد 🌷\n", "إي 🌷\n", 1)
         if intro:
-            answer = intro + answer
+            answer = (intro + answer).strip()
         send_message(chat_id, answer.strip(), business_connection_id)
         save_history(chat_id, text, answer.strip())
         return
@@ -1153,7 +1477,7 @@ def process_message(msg):
                 answer = build_general_availability()
 
         if intro:
-            answer = intro + answer
+            answer = (intro + answer).strip()
 
         send_message(chat_id, answer.strip(), business_connection_id)
         save_history(chat_id, text, answer.strip())
@@ -1165,9 +1489,74 @@ def process_message(msg):
             "بالنسبة للملازم 🌷 آني بوت، وما عندي تأكيد مباشر على سعرها أو توفرها؛ "
             "هاي تحتاج تأكيد من المكتبة."
         )
-        answer = intro + answer
+        answer = (intro + answer).strip()
         send_message(chat_id, answer, business_connection_id)
         save_history(chat_id, text, answer)
+        return
+
+    # المتابعات القصيرة جداً: اربطها بآخر موضوع قبل إرسالها للـAI.
+    short_followup = normalize(text)
+    if short_followup in {
+        "وهذا", "وهذي", "وهذا شنو", "وهاي", "وهاي شنو", "هم",
+        "اي", "اي نعم", "نعم", "هذا", "هاي", "ذني", "ذوله",
+        "شنو هذا", "زين", "وبعدين", "والثاني", "الثاني"
+    } and previous_history:
+        try:
+            answer = ask_ai(chat_id, text, [], "هذه متابعة قصيرة جداً. اربطها بآخر منتج/موضوع واضح في المحادثة ولا تبدأ موضوعاً جديداً.")
+        except Exception:
+            answer = "إي 🌷 إذا تقصد نفس المنتج السابق، گلي النوع أو المقاس حتى أجاوبك بدقة."
+        answer = (intro + answer).strip()
+        send_message(chat_id, answer.strip(), business_connection_id)
+        save_history(chat_id, text, answer.strip())
+        return
+
+    # سؤال عن فئة كاملة: جاوب بأصناف حقيقية من الكتالوج.
+    cat_answer = category_answer(text)
+    if cat_answer:
+        ans = (intro + cat_answer).strip()
+        send_message(chat_id, ans, business_connection_id)
+        save_history(chat_id, text, ans)
+        return
+
+    # إذا المنتج واضح جداً، أعطِ السعر مباشرة من القائمة ولا نترك القرار للـAI.
+    products_direct = find_products(text)
+    if products_direct and len(products_direct) <= 6:
+        answer_direct = format_product_answer(products_direct, text)
+        if answer_direct:
+            answer_direct = (intro + answer_direct).strip()
+            send_message(chat_id, answer_direct, business_connection_id)
+            save_history(chat_id, text, answer_direct)
+            return
+
+
+    # سؤال "شنو متوفر/شنو عندكم" بدون منتج محدد.
+    t_norm = normalize(text)
+    broad_questions = (
+        "شنو متوفر", "شنو موجود", "شنو عدكم", "شنو عندكم",
+        "شنو اكو", "المتوفر", "الموجود", "اغراضكم", "بضاعتكم"
+    )
+    if any(q in t_norm for q in broad_questions):
+        cats = detect_categories(" ".join(p["name"] for p in PRODUCTS))
+        # لا نستخدم أسماء أقسام مخترعة؛ نذكر أمثلة فعلية من الكتالوج.
+        groups = [
+            ("دفاتر وسجلات", ("دفتر", "سجل")),
+            ("أقلام وألوان", ("قلم", "الوان", "حبر")),
+            ("أدوات مكتبية", ("كابسة", "ثاقبة", "كلبس", "قاصه", "دنبوس")),
+            ("فايلات وظروف", ("فايل", "ظرف")),
+            ("فريمات وديكور", ("فريم", "اطار")),
+            ("ألعاب", ("اونو", "دومنه", "لعبة", "ورق لعب")),
+            ("حاسبات وراوترات", ("حاسبة", "راوتر")),
+            ("لاصق وصمغ", ("لاسق", "صمغ")),
+        ]
+        out = ["إي عدنا أصناف هواي 🌷"]
+        for label, keys in groups:
+            examples = [p["name"] for p in PRODUCTS if any(k in normalize(p["name"]) for k in keys)][:5]
+            if examples:
+                out.append(f"• {label}: " + "، ".join(examples))
+        out.append("إذا تذكر اسم الشي أو نوعه أگلك السعر الموجود بالقائمة.")
+        ans = (intro + "\n".join(out)).strip()
+        send_message(chat_id, ans, business_connection_id)
+        save_history(chat_id, text, ans)
         return
 
     # أي محادثة عامة أو متابعة غير موجودة حرفياً بالقائمة.
@@ -1185,7 +1574,7 @@ def process_message(msg):
             answer = "صار تأخير بسيط بالخدمة 🌷 حاول بعد شوي."
 
     # لا تكرر التعريف إلا أول رسالة، ولا تسمح بالكلمات الممنوعة.
-    answer = intro + answer
+    answer = (intro + answer).strip()
     for word in ("حبيبي", "حبيبتي", "عزيزي", "عزيزتي", "يابه"):
         answer = answer.replace(word, "")
 
@@ -1318,5 +1707,5 @@ def main():
 # تشغيل
 # =========================================================
 
-if __name__ == "__main__":
+if __name__ == "__main__
     main()
