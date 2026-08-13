@@ -4,7 +4,7 @@
 
 ## يحتاج مفتاحين
 1. TELEGRAM_BOT_TOKEN = توكن البوت
-2. GEMINI_API_KEY = مفتاح Gemini
+2. DEEPSEEK_API_KEY = مفتاح DeepSeek
 لا ترسل أي مفتاح داخل المحادثة.
 
 ## التشغيل على الكمبيوتر
