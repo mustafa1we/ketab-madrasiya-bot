@@ -10,7 +10,7 @@ TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
 # موديل أخف ومناسب للاستخدام العالي
-MODEL = "gemini-2.5-flash-lite"
+MODEL = "gemini-3.6-flash"
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
