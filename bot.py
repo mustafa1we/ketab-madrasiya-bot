@@ -279,7 +279,5 @@ def main():
             time.sleep(5)
 
 
-
-```python
 if __name__ == "__main__":
     main()
