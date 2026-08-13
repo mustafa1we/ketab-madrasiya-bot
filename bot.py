@@ -49,12 +49,18 @@ SYSTEM_PROMPT = """
 أوقات الدوام:
 من الساعة 7 صباحاً إلى الساعة 10 مساءً.
 
-إذا سأل الزبون عن الدوام أو قال "موجودين؟" أو "مفتوحين؟":
+إذا سأل الزبون عن الدوام أو قال:
+"موجودين؟"
+أو:
+"مفتوحين؟"
+
 أجبه:
 "إي موجودين 🌷 نفتح الساعة 7 الصبح ونغلق الساعة 10 بالليل."
 
 مهم جداً:
-لا تخترع أسعاراً أو توفر منتجات أو معلومات غير مؤكدة.
+لا تخترع أسعاراً.
+لا تخترع توفر المنتجات.
+لا تخترع معلومات غير مؤكدة.
 
 إذا لم تعرف سعر منتج، قل:
 "السعر يحتاج تأكيد من المكتبة 🌷"
@@ -112,26 +118,49 @@ def send_message(chat_id, text, business_connection_id=None):
         if business_connection_id:
             data["business_connection_id"] = business_connection_id
 
-        response = requests.post(
-            TG + "/sendMessage",
-            json=data,
-            timeout=30
-        )
+        try:
 
-        if not response.ok:
-            logging.error(
-                "Telegram sendMessage ERROR | status=%s | response=%s",
-                response.status_code,
-                response.text
+            response = requests.post(
+                TG + "/sendMessage",
+                json=data,
+                timeout=30
             )
 
-        response.raise_for_status()
+            if not response.ok:
+
+                logging.error(
+                    "Telegram sendMessage FAILED | status=%s | response=%s",
+                    response.status_code,
+                    response.text
+                )
+
+                logging.error(
+                    "Telegram data | chat_id=%s | business=%s",
+                    chat_id,
+                    bool(business_connection_id)
+                )
+
+            response.raise_for_status()
+
+            logging.info(
+                "Telegram message sent successfully"
+            )
+
+        except requests.exceptions.RequestException as error:
+
+            logging.error(
+                "Telegram sendMessage exception: %s",
+                error
+            )
+
+            raise
 
 
 def ask_ai(user_text):
 
     response = client.chat.completions.create(
         model=MODEL,
+
         messages=[
             {
                 "role": "system",
@@ -142,8 +171,15 @@ def ask_ai(user_text):
                 "content": user_text
             }
         ],
+
+        thinking={
+            "type": "disabled"
+        },
+
         stream=False,
+
         max_tokens=500,
+
         temperature=0.3
     )
 
@@ -171,14 +207,20 @@ def prepare_bot():
         )
 
         if response.ok:
-            logging.info("Webhook removed successfully")
+
+            logging.info(
+                "Webhook removed successfully"
+            )
+
         else:
+
             logging.warning(
                 "Webhook remove failed: %s",
                 response.text
             )
 
     except Exception:
+
         logging.exception(
             "Webhook preparation error"
         )
@@ -188,8 +230,14 @@ def main():
 
     offset = None
 
-    logging.info("Bot starting...")
-    logging.info("Using model: %s", MODEL)
+    logging.info(
+        "Bot starting..."
+    )
+
+    logging.info(
+        "Using model: %s",
+        MODEL
+    )
 
     prepare_bot()
 
@@ -199,6 +247,7 @@ def main():
 
             params = {
                 "timeout": 50,
+
                 "allowed_updates": json.dumps([
                     "message",
                     "business_message"
@@ -221,6 +270,7 @@ def main():
                 )
 
                 time.sleep(10)
+
                 continue
 
             response.raise_for_status()
@@ -262,6 +312,10 @@ def main():
                     bool(business_connection_id)
                 )
 
+                # =========================
+                # الرسائل النصية
+                # =========================
+
                 if "text" in msg:
 
                     text = msg["text"].strip()
@@ -273,9 +327,11 @@ def main():
 
                         send_message(
                             chat_id,
+
                             "أهلاً وسهلاً 🌷\n"
                             "آني المساعد الذكي لمكتبة أم القرى.\n"
                             "اكتبلي شنو تحتاج.",
+
                             business_connection_id
                         )
 
@@ -285,8 +341,10 @@ def main():
 
                         send_message(
                             chat_id,
+
                             "اكتب سؤالك مباشرة 🌷\n"
                             "وأجاوبك بكل ما يخص مكتبة أم القرى.",
+
                             business_connection_id
                         )
 
@@ -351,20 +409,35 @@ def main():
                                 business_connection_id
                             )
 
-                elif "photo" in msg or "document" in msg:
+                # =========================
+                # الصور والملفات
+                # =========================
+
+                elif (
+                    "photo" in msg
+                    or "document" in msg
+                ):
 
                     send_message(
                         chat_id,
+
                         "وصلتني الصورة/الملف 🌷\n"
                         "اكتبلي شنو تريد تعرف عنه.",
+
                         business_connection_id
                     )
+
+                # =========================
+                # أنواع رسائل أخرى
+                # =========================
 
                 else:
 
                     send_message(
                         chat_id,
+
                         "أكدر أساعدك بكل ما يخص مكتبة أم القرى 🌷",
+
                         business_connection_id
                     )
 
