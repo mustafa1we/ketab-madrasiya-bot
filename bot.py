@@ -1,15 +1,19 @@
+```python
 import os
 import time
+import json
 import logging
 import requests
 from google import genai
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
-# موديل أخف ومناسب للاستخدام العالي
 MODEL = "gemini-3.6-flash"
 
 client = genai.Client(api_key=GEMINI_API_KEY)
@@ -83,7 +87,6 @@ def send_message(chat_id, text, business_connection_id=None):
         "text": text
     }
 
-    # مهم لرسائل Telegram Business
     if business_connection_id:
         data["business_connection_id"] = business_connection_id
 
@@ -117,20 +120,50 @@ def ask_ai(user_text):
     return "وضحلي شنو تحتاج 🌷"
 
 
+def prepare_bot():
+    """
+    نلغي أي Webhook قديم لأننا نستخدم getUpdates / polling.
+    """
+    try:
+        response = requests.post(
+            TG + "/deleteWebhook",
+            json={
+                "drop_pending_updates": False
+            },
+            timeout=30
+        )
+
+        if response.ok:
+            logging.info("Webhook removed successfully")
+        else:
+            logging.warning(
+                "Could not remove webhook: %s",
+                response.text
+            )
+
+    except Exception:
+        logging.exception("Webhook preparation error")
+
+
 def main():
     offset = None
 
-    logging.info("Bot started")
+    logging.info("Bot starting...")
     logging.info("Using model: %s", MODEL)
+
+    prepare_bot()
 
     while True:
         try:
+
             params = {
                 "timeout": 50,
-                "allowed_updates": [
+
+                # Telegram يحتاجها كـ JSON string
+                "allowed_updates": json.dumps([
                     "message",
                     "business_message"
-                ]
+                ])
             }
 
             if offset is not None:
@@ -139,14 +172,25 @@ def main():
             response = requests.get(
                 TG + "/getUpdates",
                 params=params,
-                timeout=60
+                timeout=65
             )
+
+            # معالجة تعارض polling
+            if response.status_code == 409:
+                logging.error(
+                    "Telegram 409 Conflict: another bot instance "
+                    "is using getUpdates with the same token."
+                )
+
+                time.sleep(10)
+                continue
 
             response.raise_for_status()
 
             updates = response.json().get("result", [])
 
             for update in updates:
+
                 offset = update["update_id"] + 1
 
                 # الرسائل العادية
@@ -169,7 +213,6 @@ def main():
                 if not chat_id:
                     continue
 
-                # موجود برسائل Business
                 business_connection_id = msg.get(
                     "business_connection_id"
                 )
@@ -191,6 +234,7 @@ def main():
                     if not text:
                         continue
 
+                    # /start
                     if text.startswith("/start"):
 
                         send_message(
@@ -203,6 +247,7 @@ def main():
 
                         continue
 
+                    # /help
                     if text.startswith("/help"):
 
                         send_message(
@@ -214,6 +259,7 @@ def main():
 
                         continue
 
+                    # سؤال الزبون
                     try:
 
                         answer = ask_ai(text)
@@ -228,10 +274,13 @@ def main():
 
                         logging.exception("AI error")
 
-                        error_text = str(error)
+                        error_text = str(error).lower()
 
-                        # إذا انتهت حصة Gemini
-                        if "429" in error_text or "quota" in error_text.lower():
+                        if (
+                            "429" in error_text
+                            or "quota" in error_text
+                            or "rate limit" in error_text
+                        ):
 
                             send_message(
                                 chat_id,
@@ -261,7 +310,7 @@ def main():
                     )
 
                 # =========================
-                # أي نوع رسالة ثاني
+                # أنواع الرسائل الأخرى
                 # =========================
 
                 else:
@@ -272,12 +321,31 @@ def main():
                         business_connection_id
                     )
 
+        except requests.exceptions.Timeout:
+
+            logging.warning(
+                "Telegram request timed out. Retrying..."
+            )
+
+            continue
+
+        except requests.exceptions.RequestException:
+
+            logging.exception(
+                "Telegram connection error"
+            )
+
+            time.sleep(5)
+
         except Exception:
 
-            logging.exception("Polling error")
+            logging.exception(
+                "Unexpected polling error"
+            )
 
             time.sleep(5)
 
 
 if __name__ == "__main__":
     main()
+```
